@@ -1,0 +1,60 @@
+name: Phase 2 | Free PostgreSQL Initialization
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/free-postgres-smoke.yml'
+      - 'backend/errows/db/**'
+      - 'backend/errows/scripts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    name: Initialize temporary PostgreSQL and run migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: errows
+          POSTGRES_PASSWORD: temporary-ci-only
+          POSTGRES_DB: errows
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U errows -d errows"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PG_PASSWORD: temporary-ci-only
+      NODE_ENV: production
+      HOST_ORIGIN: http://localhost:5003
+      JWT_SECRET: local-ci-nonproduction-secret-only
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.19.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - name: Install original project dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Bootstrap database with original CLI
+        run: pnpm errowsctl bootstrap --conf production
+      - name: Apply original migrations
+        run: pnpm errowsctl migration upgrade --conf production
+      - name: Verify migrations in temporary database
+        env:
+          PGPASSWORD: temporary-ci-only
+        run: |
+          psql -h 127.0.0.1 -U errows -d errows -c 'SELECT count(*) AS migration_count FROM errows.schema_migrations;'
