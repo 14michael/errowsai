@@ -21,39 +21,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Build front end and server without paid services
+  build:
+    name: Frontend and backend build (no paid APIs)
     runs-on: ubuntu-latest
     timeout-minutes: 18
-    env:
-      CI: "true"
-      NODE_ENV: "development"
     steps:
-      - name: Checkout original source
-        uses: actions/checkout@v4
-      - name: Install Node.js and cache pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10.19.0
           run_install: false
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: pnpm
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build user-facing React application
+      - name: Build React application
         run: pnpm --filter errows-web build
-      - name: Build Moleculer API backend
+      - name: Build Moleculer server
         run: pnpm --filter @errows/server build
-      - name: Run existing backend unit tests (no paid APIs)
-        run: pnpm --filter @errows/server test
-      - name: Upload frontend build as proof (not public deployment)
-        if: success()
+      - name: Retain frontend build artifact for inspection
         uses: actions/upload-artifact@v4
         with:
           name: errows-frontend-build
           path: apps/errows-web/dist/
           if-no-files-found: error
           retention-days: 7
+
+  original-tests:
+    name: Original test suite — expose external-service blockers
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.19.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run original tests unmodified; no fake secrets
+        run: pnpm --filter @errows/server test
