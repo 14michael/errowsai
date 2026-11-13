@@ -57,4 +57,4 @@ jobs:
         env:
           PGPASSWORD: temporary-ci-only
         run: |
-          psql -h 127.0.0.1 -U errows -d errows -c 'SELECT count(*) AS migration_count FROM errows.schema_migrations;'
+          psql -h 127.0.0.1 -U errows -d errows -c 'SELECT count(*) AS migration_count FROM public.schema_migrations;'
